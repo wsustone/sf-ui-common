@@ -1,0 +1,23 @@
+[package]
+name = "sf-ui-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.14.2", features = ["default", "bevy_ui", "bevy_text", "bevy_sprite"] }
+bevy_input = "0.14.2"
+bevy_reflect = { version = "0.14.2", features = ["bevy"] }
+
+[lib]
+name = "sf_ui_common"
+path = "src/lib.rs"
+
+[profile.dev]
+opt-level = 1
+lto = "thin"
+codegen-units = 16
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
