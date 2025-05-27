@@ -9,23 +9,16 @@
 #![warn(rustdoc::missing_crate_level_docs)]
 
 use bevy::prelude::*;
-use bevy::text::TextStyle;
-use bevy::ui::{FocusPolicy, RelativeCursorPosition};
-
-// Fix color usage to use bevy::prelude::Color
-type Color = bevy::prelude::Color;
 
 // Re-export commonly used types
+pub mod advanced_components;
 pub mod components;
-pub mod styles;
 pub mod systems;
-pub mod utils;
 
 // Re-export commonly used items
+pub use advanced_components::*;
 pub use components::*;
-pub use styles::*;
 pub use systems::*;
-pub use utils::*;
 
 /// Standard color definitions for UI elements
 pub mod colors {
@@ -221,15 +214,20 @@ pub fn checkbox_interaction_system(
 
 /// System to handle slider interactions
 pub fn slider_interaction_system(
-    mut query: Query<(&Interaction, &mut UiSlider, &Style), (Changed<Interaction>, With<UiSlider>)>,
+    mut query: Query<(&Interaction, &mut UiSlider, &mut Style), (Changed<Interaction>, With<UiSlider>)>,
 ) {
-    for (interaction, mut slider, style) in &mut query {
-        if slider.disabled {
-            continue;
-        }
-        
-        if *interaction == Interaction::Pressed {
-            // Slider logic here
+    for (interaction, mut slider, mut style) in &mut query {
+        match interaction {
+            Interaction::Pressed => {
+                slider.value = slider.value.clamp(0.0, 1.0);
+                style.width = Val::Px(slider.value * 100.0);
+            }
+            Interaction::Hovered => {
+                style.width = Val::Px(slider.value * 100.0);
+            }
+            Interaction::None => {
+                style.width = Val::Px(slider.value * 100.0);
+            }
         }
     }
 }

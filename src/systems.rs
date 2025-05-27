@@ -1,8 +1,10 @@
 //! Systems for handling UI interactions and updates
 
+use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::ui::{Interaction, BackgroundColor};
 use crate::components::*;
+use crate::advanced_components::{scroll_area_system, calculate_scroll_bounds_system};
 
 /// System to handle button interactions and visual feedback
 pub fn button_interaction_system(
@@ -63,58 +65,20 @@ pub fn checkbox_interaction_system(
     }
 }
 
-/// System to handle slider interactions
+/// System to handle slider interactions and visual feedback
 pub fn slider_interaction_system(
-    mut query: Query<(
-        &Interaction,
-        &mut UiSlider,
-        &mut Style,
-        &Node,
-        &GlobalTransform,
-        &mut BackgroundColor,
-    )>,
-    windows: Query<&Window>,
+    mut query: Query<(&Interaction, &UiSlider, &mut Style), (Changed<Interaction>, With<UiSlider>)>,
 ) {
-    for (interaction, mut slider, mut style, node, transform, mut bg_color) in &mut query {
-        if slider.disabled {
-            continue;
-        }
-
-        // Update appearance based on interaction state
-        *bg_color = match interaction {
-            Interaction::Pressed => Color::srgb(0.3, 0.3, 0.4).into(),
-            Interaction::Hovered => Color::srgb(0.25, 0.25, 0.35).into(),
-            _ => Color::srgb(0.2, 0.2, 0.3).into(),
-        };
-
-        // Handle dragging
-        if *interaction == Interaction::Pressed {
-            if let Ok(window) = windows.get_single() {
-                if let Some(cursor_pos) = window.cursor_position() {
-                    // Convert cursor position to local space
-                    let node_pos = transform.translation();
-                    let node_rect = node.logical_rect(transform);
-                    
-                    // Calculate relative position (0.0 to 1.0)
-                    let rel_x = ((cursor_pos.x - node_rect.min.x) / node_rect.width())
-                        .clamp(0.0, 1.0);
-                    
-                    // Update slider value based on position
-                    let range = slider.max - slider.min;
-                    let mut new_value = slider.min + (range * rel_x);
-                    
-                    // Apply step if specified
-                    if let Some(step) = slider.step {
-                        new_value = (new_value / step).round() * step;
-                    }
-                    
-                    slider.value = new_value.clamp(slider.min, slider.max);
-                    
-                    // Update fill width
-                    if let Val::Percent(_) = style.width {
-                        style.width = Val::Percent((rel_x * 100.0).clamp(0.0, 100.0));
-                    }
-                }
+    for (interaction, slider, mut style) in &mut query {
+        match interaction {
+            Interaction::Pressed => {
+                style.width = Val::Px(slider.value * 100.0);
+            }
+            Interaction::Hovered => {
+                style.width = Val::Px(slider.value * 100.0);
+            }
+            Interaction::None => {
+                style.width = Val::Px(slider.value * 100.0);
             }
         }
     }
@@ -140,63 +104,246 @@ fn update_progress_bars(
     }
 }
 
-/// System to handle tooltips
+/// System to handle tooltip visibility and positioning
 pub fn tooltip_system(
     mut commands: Commands,
+    mut tooltip_query: Query<(Entity, &Tooltip, &Parent), Without<Text>>,
+    parent_query: Query<(), With<Node>>,
     asset_server: Res<AssetServer>,
-    interaction_query: Query<(&Interaction, &GlobalTransform, &Node, &UiTooltip), With<Button>>,
-    mut tooltip_query: Query<Entity, With<Tooltip>>,
-    windows: Query<&Window>,
 ) {
-    // Remove existing tooltips
-    for entity in &mut tooltip_query {
-        commands.entity(entity).despawn_recursive();
-    }
-
-    // Show tooltip for hovered elements
-    for (_interaction, _transform, _node, tooltip) in &interaction_query {
-        if let Ok(window) = windows.get_single() {
-            if let Some(cursor_pos) = window.cursor_position() {
-                commands.spawn((
-                    NodeBundle {
-                        style: Style {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(cursor_pos.x + tooltip.offset.x),
-                            top: Val::Px(cursor_pos.y + tooltip.offset.y),
-                            padding: UiRect::all(Val::Px(8.0)),
-                            ..default()
-                        },
-                        background_color: Color::srgba(0.1, 0.1, 0.1, 0.9).into(),
-                        ..default()
+    for (entity, tooltip, _) in &mut tooltip_query {
+        if parent_query.get(entity).is_ok() {
+            commands.entity(entity).insert(
+                TextBundle::from_section(
+                    &tooltip.text,
+                    TextStyle {
+                        font: asset_server.load("fonts/FiraSans-Medium.ttf"),
+                        font_size: 16.0,
+                        color: Color::WHITE,
                     },
-                    TextBundle::from_section(
-                        &tooltip.text,
-                        TextStyle {
-                            font: asset_server.load("fonts/FiraSans-Medium.ttf"),
-                            font_size: 16.0,
-                            color: Color::WHITE,
-                        },
-                    ),
-                    Tooltip,
-                ));
+                )
+                .with_style(Style {
+                    position_type: PositionType::Absolute,
+                    padding: UiRect::all(Val::Px(8.0)),
+                    ..default()
+                }),
+            );
+        }
+    }
+}
+
+/// System to handle keyboard navigation between focusable elements
+pub fn focus_navigation_system(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut focus_query: Query<(Entity, &mut Focusable, &mut BackgroundColor, &mut BorderColor, &GlobalTransform)>,
+    mut current_focus: Local<Option<Entity>>,
+) {
+    // Handle tab navigation
+    if keyboard_input.just_pressed(KeyCode::Tab) {
+        let mut focusables: Vec<_> = focus_query.iter_mut().collect();
+        
+        // Sort by vertical then horizontal position
+        focusables.sort_by(|a, b| {
+            let a_pos = a.4.translation();
+            let b_pos = b.4.translation();
+            a_pos.y.total_cmp(&b_pos.y).then(a_pos.x.total_cmp(&b_pos.x))
+        });
+        
+        if let Some(current) = *current_focus {
+            if let Some(pos) = focusables.iter().position(|(e, _, _, _, _)| *e == current) {
+                let next_pos = (pos + 1) % focusables.len();
+                *current_focus = Some(focusables[next_pos].0);
+            }
+        } else if !focusables.is_empty() {
+            *current_focus = Some(focusables[0].0);
+        }
+    }
+    
+    // Update focus states
+    for (entity, mut focusable, mut bg_color, mut border_color, _) in &mut focus_query {
+        let is_focused = *current_focus == Some(entity);
+        
+        focusable.state = if is_focused {
+            FocusState::Focused
+        } else {
+            FocusState::NotFocused
+        };
+        
+        // Visual feedback
+        if is_focused {
+            *bg_color = Color::srgb(0.3, 0.3, 0.0).into();
+            *border_color = Color::srgb(1.0, 1.0, 0.0).into();
+        }
+    }
+}
+
+/// System to update visual feedback for focused elements
+pub fn focus_visual_system(
+    mut query: Query<(
+        &Focusable,
+        &mut BackgroundColor,
+        &mut BorderColor,
+        &mut Style,
+    )>,
+) {
+    // TODO: Implement focus visuals
+}
+
+/// System to handle dropdown interactions
+pub fn dropdown_system(
+    mut commands: Commands,
+    mut dropdown_query: Query<(Entity, &mut Dropdown, &Interaction, &GlobalTransform, &Node), Changed<Interaction>>,
+    _text_query: Query<&mut Text>,
+    asset_server: Res<AssetServer>,
+) {
+    for (entity, mut dropdown, interaction, transform, node) in &mut dropdown_query {
+        match interaction {
+            Interaction::Pressed => {
+                dropdown.opened = !dropdown.opened;
+                
+                if dropdown.opened {
+                    commands.entity(entity).with_children(|parent| {
+                        for (i, option) in dropdown.options.iter().enumerate() {
+                            parent.spawn((
+                                ButtonBundle {
+                                    style: Style {
+                                        width: Val::Percent(100.0),
+                                        height: Val::Px(30.0),
+                                        ..default()
+                                    },
+                                    ..default()
+                                },
+                                Name::new(format!("DropdownOption_{}", i)),
+                            )).with_children(|parent| {
+                                parent.spawn(TextBundle::from_section(
+                                    option,
+                                    TextStyle {
+                                        font: asset_server.load("fonts/FiraSans-Regular.ttf"),
+                                        font_size: 16.0,
+                                        ..default()
+                                    },
+                                ));
+                            });
+                        }
+                    });
+                } else {
+                    // Despawn dropdown options
+                    commands.entity(entity).despawn_descendants();
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// System to handle tab switching
+pub fn tab_system(
+    mut commands: Commands,
+    mut tab_query: Query<(&mut TabbedContainer, &Children)>, 
+    mut button_query: Query<(&Interaction, &Parent), (Changed<Interaction>, With<Button>)>,
+) {
+    for (interaction, parent) in &mut button_query {
+        if let Interaction::Pressed = interaction {
+            if let Ok((mut tab_container, children)) = tab_query.get_mut(parent.get()) {
+                if let Some(index) = children.iter().position(|&child| child == parent.get()) {
+                    tab_container.active_tab = index;
+                    
+                    // Update tab visibility
+                    for (i, &child) in children.iter().enumerate() {
+                        commands.entity(child).insert(Visibility::Visible);
+                        if i != index {
+                            commands.entity(child).insert(Visibility::Hidden);
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-/// Marker component for tooltip entities
-#[derive(Component, Reflect)]
-pub struct Tooltip;
+/// System to handle scroll pane interactions
+pub fn scroll_pane_system(
+    mut panes: Query<(&mut ScrollPane, &Node, &GlobalTransform)>, 
+    mut scroll_events: EventReader<MouseWheel>,
+    windows: Query<&Window>,
+) {
+    let window = windows.single();
+    
+    for event in scroll_events.read() {
+        for (mut pane, node, transform) in &mut panes {
+            // Check if cursor is over this pane
+            if let Some(cursor_pos) = window.cursor_position() {
+                let node_rect = node.logical_rect(transform);
+                
+                if node_rect.contains(cursor_pos) {
+                    // Update scroll position based on wheel movement
+                    let scroll_delta = match event.unit {
+                        MouseScrollUnit::Line => event.y * 20.0,
+                        MouseScrollUnit::Pixel => event.y,
+                    };
+                    
+                    pane.scroll_position.y = (pane.scroll_position.y + scroll_delta)
+                        .max(0.0).min(pane.max_scroll.y);
+                }
+            }
+        }
+    }
+}
 
+/// System to handle setting row hover/select
+pub fn setting_row_system(
+    mut row_query: Query<(
+        &SettingRow,
+        &mut BackgroundColor,
+        &Interaction,
+        &Focusable
+    ), Changed<Interaction>>,
+    mut tooltip_query: Query<&mut Tooltip>,
+) {
+    for (setting_row, mut bg_color, interaction, focusable) in &mut row_query {
+        match (interaction, focusable.state) {
+            (Interaction::Pressed, _) => {
+                *bg_color = Color::srgb(0.2, 0.2, 0.4).into();
+            }
+            (Interaction::Hovered, FocusState::NotFocused) => {
+                *bg_color = Color::srgb(0.3, 0.3, 0.5).into();
+                
+                // Show tooltip if available
+                if let Some(help_text) = &setting_row.help_text {
+                    if let Ok(mut tooltip) = tooltip_query.get_single_mut() {
+                        tooltip.text = help_text.clone();
+                    }
+                }
+            }
+            (_, FocusState::Focused) => {
+                *bg_color = Color::srgb(0.4, 0.4, 0.6).into();
+            }
+            _ => {
+                *bg_color = Color::srgb(0.15, 0.15, 0.3).into();
+            }
+        }
+    }
+}
+
+/// Registers all UI systems and components with the Bevy app
+/// 
+/// # Arguments
+/// * `app` - The Bevy App to register systems with
 pub fn update(app: &mut App) {
-    app.add_systems(
-        Update,
-        (
-            button_interaction_system,
-            checkbox_interaction_system,
-            slider_interaction_system,
-            update_progress_bars,
-            tooltip_system
-        )
-    );
+    app.register_type::<Tooltip>()
+        .register_type::<UiSlider>()
+        .register_type::<Dropdown>()
+        .register_type::<ScrollPane>()
+        .add_systems(
+            Update,
+            (
+                tooltip_system,
+                slider_interaction_system,
+                dropdown_system,
+                scroll_pane_system,
+                setting_row_system,
+                tab_system,
+                focus_navigation_system,
+            ),
+        );
 }
