@@ -11,14 +11,31 @@
 use bevy::prelude::*;
 
 // Re-export commonly used types
+
+/// Accessibility-related components and systems for UI elements
+/// 
+/// This module provides functionality for making UI elements accessible,
+/// including screen reader support and keyboard navigation.
+pub mod accessibility;
 pub mod advanced_components;
 pub mod components;
+pub mod styles;
 pub mod systems;
+/// Common type definitions used throughout the UI
+/// 
+/// This module contains enums, structs, and other type definitions that are
+/// used across different parts of the UI system.
+pub mod types;
+pub mod utils;
 
 // Re-export commonly used items
-pub use advanced_components::*;
-pub use components::*;
+pub use accessibility::*;
+pub use components::{UiSlider, UiCheckbox};
+pub use styles::*;
 pub use systems::*;
+pub use types::*;
+pub use utils::*;
+pub use bevy::window::PrimaryWindow;
 
 /// Standard color definitions for UI elements
 pub mod colors {

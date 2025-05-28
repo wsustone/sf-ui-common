@@ -48,6 +48,24 @@ pub mod common {
             ..default()
         }
     }
+
+    /// Style for subsection titles
+    pub fn subsection_title_style(asset_server: &Res<AssetServer>) -> TextStyle {
+        TextStyle {
+            font: asset_server.load("fonts/FiraSans-SemiBold.ttf"),
+            font_size: 18.0,
+            color: Color::WHITE,
+        }
+    }
+
+    /// Style for regular text content
+    pub fn regular_text_style(asset_server: &Res<AssetServer>) -> TextStyle {
+        TextStyle {
+            font: asset_server.load("fonts/FiraSans-Regular.ttf"),
+            font_size: 14.0,
+            color: Color::WHITE,
+        }
+    }
 }
 
 /// Menu-specific styles

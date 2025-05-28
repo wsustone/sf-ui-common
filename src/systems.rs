@@ -2,9 +2,10 @@
 
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use bevy::ui::{Interaction, BackgroundColor};
+use bevy::ui::{Interaction, BackgroundColor, BorderColor};
 use crate::components::*;
 use crate::advanced_components::{scroll_area_system, calculate_scroll_bounds_system};
+use crate::colors;
 
 /// System to handle button interactions and visual feedback
 pub fn button_interaction_system(
@@ -25,9 +26,9 @@ pub fn button_interaction_system(
 
         // Update background color based on state
         *bg_color = match interaction {
-            Interaction::Pressed => Color::srgb(0.3, 0.3, 0.4).into(),
-            Interaction::Hovered => Color::srgb(0.25, 0.25, 0.35).into(),
-            _ => Color::srgb(0.2, 0.2, 0.3).into(),
+            Interaction::Pressed => colors::button::PRESSED.into(),
+            Interaction::Hovered => colors::button::HOVERED.into(),
+            _ => colors::button::NORMAL.into(),
         };
 
         // Update text color if this button has text children
@@ -36,9 +37,9 @@ pub fn button_interaction_system(
                 if let Ok(mut text) = text_query.get_mut(child) {
                     for section in text.sections.iter_mut() {
                         section.style.color = match interaction {
-                            Interaction::Pressed => Color::srgb(0.9, 0.9, 1.0),
-                            Interaction::Hovered => Color::srgb(0.95, 0.95, 1.0),
-                            _ => Color::WHITE,
+                            Interaction::Pressed => colors::focus::TEXT,
+                            Interaction::Hovered => colors::text::NORMAL,
+                            _ => colors::text::NORMAL,
                         };
                     }
                 }
@@ -57,9 +58,9 @@ pub fn checkbox_interaction_system(
             checkbox.checked = !checkbox.checked;
             // Update checkbox background
             *bg_color = if checkbox.checked {
-                Color::srgb(0.25, 0.5, 0.75).into()
+                colors::button::PRESSED.into()
             } else {
-                Color::srgb(0.15, 0.15, 0.15).into()
+                colors::button::NORMAL.into()
             };
         }
     }
@@ -119,7 +120,7 @@ pub fn tooltip_system(
                     TextStyle {
                         font: asset_server.load("fonts/FiraSans-Medium.ttf"),
                         font_size: 16.0,
-                        color: Color::WHITE,
+                        color: colors::WHITE,
                     },
                 )
                 .with_style(Style {
@@ -171,8 +172,8 @@ pub fn focus_navigation_system(
         
         // Visual feedback
         if is_focused {
-            *bg_color = Color::srgb(0.3, 0.3, 0.0).into();
-            *border_color = Color::srgb(1.0, 1.0, 0.0).into();
+            *bg_color = colors::focus::HIGHLIGHT.into();
+            *border_color = colors::focus::BORDER.into();
         }
     }
 }

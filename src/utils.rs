@@ -5,6 +5,9 @@ use bevy::{
     ui::{AlignItems, JustifyContent, Style, UiRect, Val},
 };
 
+use crate::colors;
+
+
 /// Creates a centered container with the given content
 pub fn centered_container(style: Style) -> NodeBundle {
     NodeBundle {
@@ -80,7 +83,7 @@ pub fn button_bundle(
             margin: UiRect::all(Val::Px(5.0)),
             ..style
         },
-        background_color: Color::srgb(0.15, 0.15, 0.15).into(),
+        background_color: colors::button::NORMAL.into(),
         ..default()
     };
 
@@ -110,7 +113,7 @@ pub fn slider_bundle(
             margin: UiRect::horizontal(Val::Px(10.0)),
             ..style
         },
-        background_color: Color::srgb(0.3, 0.3, 0.3).into(),
+        background_color: colors::slider::BACKGROUND.into(),
         ..default()
     };
 
@@ -121,7 +124,7 @@ pub fn slider_bundle(
             height: Val::Percent(100.0),
             ..default()
         },
-        background_color: Color::srgb(0.2, 0.6, 1.0).into(),
+        background_color: colors::slider::FOREGROUND.into(),
         ..default()
     };
 
@@ -133,7 +136,7 @@ pub fn slider_bundle(
             left: Val::Px(fill_width - 8.0),
             ..default()
         },
-        background_color: Color::WHITE.into(),
+        background_color: colors::slider::HANDLE.into(),
         ..default()
     };
 
@@ -155,8 +158,8 @@ pub fn checkbox_bundle(
             border: UiRect::all(Val::Px(2.0)),
             ..default()
         },
-        background_color: Color::srgb(0.1, 0.1, 0.1).into(),
-        border_color: Color::WHITE.into(),
+        background_color: colors::button::NORMAL.into(),
+        border_color: colors::WHITE.into(),
         ..default()
     };
 
