@@ -4,7 +4,6 @@ use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::ui::{Interaction, BackgroundColor, BorderColor};
 use crate::components::*;
-use crate::advanced_components::{scroll_area_system, calculate_scroll_bounds_system};
 use crate::colors;
 
 /// System to handle button interactions and visual feedback
@@ -345,6 +344,7 @@ pub fn update(app: &mut App) {
                 setting_row_system,
                 tab_system,
                 focus_navigation_system,
+                
             ),
         );
 }

@@ -17,7 +17,7 @@ use bevy::prelude::*;
 /// This module provides functionality for making UI elements accessible,
 /// including screen reader support and keyboard navigation.
 pub mod accessibility;
-pub mod advanced_components;
+pub mod menu_components;
 pub mod components;
 pub mod styles;
 pub mod systems;
@@ -36,6 +36,16 @@ pub use systems::*;
 pub use types::*;
 pub use utils::*;
 pub use bevy::window::PrimaryWindow;
+/// Re-export egui menu UI wrappers for use in menus and plugins.
+/// These provide styled, ergonomic access to common egui widgets.
+pub use menu_components::egui_wrappers::{
+    menu_scroll_area,
+    menu_button,
+    menu_label,
+    menu_text_edit_singleline,
+    menu_checkbox,
+    menu_table,
+};
 
 /// Standard color definitions for UI elements
 pub mod colors {
@@ -186,18 +196,20 @@ pub struct UiCommonPlugin;
 
 impl Plugin for UiCommonPlugin {
     fn build(&self, app: &mut App) {
-        app
-            // Register our custom components
-            .register_type::<components::UiButton>()
-            .register_type::<components::UiCheckbox>()
-            .register_type::<components::UiSlider>()
-            
-            // Add systems
-            .add_systems(Update, (
-                systems::button_interaction_system,
-                systems::checkbox_interaction_system,
-                systems::slider_interaction_system,
-            ));
+        // Register components
+        app.register_type::<UiSlider>()
+           .register_type::<UiCheckbox>()
+           // No need to register ECS types for egui menu components
+           ;
+        // Add UI system set
+        app.add_systems(Update, (
+            button_interaction_system,
+            checkbox_interaction_system,
+            slider_interaction_system,
+            // egui systems are initialized in your app entrypoint (see bevy_egui docs)
+        ));
+        // Note: egui menu components are available via menu_components::egui_wrappers
+
     }
 }
 
